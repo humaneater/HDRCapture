@@ -253,43 +253,21 @@ internal static class WinRtCaptureNative
 
     public static void CopyResource(nint context, nint destination, nint source)
     {
-        var rawContext = (ID3D11DeviceContextRaw)Marshal.GetObjectForIUnknown(context);
-        try
-        {
-            rawContext.CopyResource(destination, source);
-        }
-        finally
-        {
-            Marshal.ReleaseComObject(rawContext);
-        }
+        var copyResource = Com.GetDelegate<CopyResourceDelegate>(context, 47);
+        copyResource(context, destination, source);
     }
 
     public static D3D11MappedSubresource MapRead(nint context, nint resource)
     {
-        var rawContext = (ID3D11DeviceContextRaw)Marshal.GetObjectForIUnknown(context);
-        try
-        {
-            Marshal.ThrowExceptionForHR(
-                rawContext.Map(resource, 0, D3D11MapRead, 0, out var mapped));
-            return mapped;
-        }
-        finally
-        {
-            Marshal.ReleaseComObject(rawContext);
-        }
+        var map = Com.GetDelegate<MapDelegate>(context, 14);
+        Marshal.ThrowExceptionForHR(map(context, resource, 0, D3D11MapRead, 0, out var mapped));
+        return mapped;
     }
 
     public static int TryMapRead(nint context, nint resource, out D3D11MappedSubresource mapped)
     {
-        var rawContext = (ID3D11DeviceContextRaw)Marshal.GetObjectForIUnknown(context);
-        try
-        {
-            return rawContext.Map(resource, 0, D3D11MapRead, 0, out mapped);
-        }
-        finally
-        {
-            Marshal.ReleaseComObject(rawContext);
-        }
+        var map = Com.GetDelegate<MapDelegate>(context, 14);
+        return map(context, resource, 0, D3D11MapRead, 0, out mapped);
     }
 
     public static int ProbeMapRead()
@@ -314,15 +292,8 @@ internal static class WinRtCaptureNative
 
     public static void Unmap(nint context, nint resource)
     {
-        var rawContext = (ID3D11DeviceContextRaw)Marshal.GetObjectForIUnknown(context);
-        try
-        {
-            rawContext.Unmap(resource, 0);
-        }
-        finally
-        {
-            Marshal.ReleaseComObject(rawContext);
-        }
+        var unmap = Com.GetDelegate<UnmapDelegate>(context, 15);
+        unmap(context, resource, 0);
     }
 
     public static byte[] ReadTexture(
@@ -486,7 +457,7 @@ internal static class WinRtCaptureNative
         uint subresource,
         uint mapType,
         uint mapFlags,
-        nint mapped);
+        out D3D11MappedSubresource mapped);
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     private delegate void UnmapDelegate(nint instance, nint resource, uint subresource);
@@ -530,6 +501,11 @@ internal static class WinRtCaptureNative
 
 internal static class Com
 {
+    private static readonly Guid ClosableIid = new("30D5A829-7FA4-4026-83BB-D75BAE4EA99E");
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate int CloseDelegate(nint instance);
+
     public static T GetDelegate<T>(nint instance, int vtableIndex)
         where T : Delegate
     {
@@ -546,6 +522,38 @@ internal static class Com
         }
 
         return Marshal.GetDelegateForFunctionPointer<T>(function);
+    }
+
+    public static void CloseAndRelease(ref nint instance)
+    {
+        if (instance == 0)
+        {
+            return;
+        }
+
+        // WGC sessions and frame pools own native worker/event resources. Releasing the COM
+        // pointer alone is not enough; WinRT requires IClosable.Close before the final release.
+        try
+        {
+            var iid = ClosableIid;
+            if (Marshal.QueryInterface(instance, in iid, out var closable) == 0)
+            {
+                try
+                {
+                    var close = GetDelegate<CloseDelegate>(closable, 6);
+                    _ = close(closable);
+                }
+                finally
+                {
+                    Release(closable);
+                }
+            }
+        }
+        finally
+        {
+            Release(instance);
+            instance = 0;
+        }
     }
 
     public static void Release(nint instance)

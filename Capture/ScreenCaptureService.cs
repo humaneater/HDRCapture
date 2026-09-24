@@ -144,10 +144,8 @@ internal sealed class ScreenCaptureService
             surface = 0;
             Com.Release(frame);
             frame = 0;
-            Com.Release(session);
-            session = 0;
-            Com.Release(framePool);
-            framePool = 0;
+            Com.CloseAndRelease(ref session);
+            Com.CloseAndRelease(ref framePool);
             Com.Release(item);
             item = 0;
 
@@ -171,8 +169,8 @@ internal sealed class ScreenCaptureService
             Com.Release(texture);
             Com.Release(surface);
             Com.Release(frame);
-            Com.Release(session);
-            Com.Release(framePool);
+            Com.CloseAndRelease(ref session);
+            Com.CloseAndRelease(ref framePool);
             Com.Release(item);
         }
     }

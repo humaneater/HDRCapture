@@ -13,7 +13,7 @@
     <RootNamespace>HdrCapture</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\HDRCapture.ico</ApplicationIcon>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>HDRCapture</Authors>
     <Description>Windows HDR region capture to clipboard PNG, with optional EXR saving.</Description>
   </PropertyGroup>
