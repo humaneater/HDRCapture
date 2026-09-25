@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using HdrCapture.Capture;
+using HdrCapture.ComfyUi;
 using HdrCapture.Configuration;
 using HdrCapture.Exr;
 using HdrCapture.Imaging;
@@ -27,6 +29,14 @@ internal static class SelfTestRunner
         RunTest("预览画质档位", TestPreviewQuality);
         RunTest("EXR 保存开关", TestExrSaveSwitch);
         RunTest("保存目录错误", TestSaveDirectoryFailure);
+        RunTest("最近截图替换", TestLastCaptureStore);
+        RunTest("快速 HDR 降噪", TestFastHdrDenoise);
+        RunTest("OIDN HDR 降噪", TestOidnHdrDenoise);
+        RunTest("ComfyUI 工作流结构", TestComfyUiWorkflow);
+        RunTest("ComfyUI 本地工作流模板", TestComfyUiWorkflowTemplate);
+        RunTest("ComfyUI 错误提示", TestComfyUiErrorText);
+        RunTest("ComfyUI 路径检测", TestComfyUiPathValidation);
+        RunTest("ComfyUI 可选组件", TestComfyUiOptionalComponents);
 
         var builder = new StringBuilder();
         var failures = 0;
@@ -339,6 +349,10 @@ internal static class SelfTestRunner
             var migrated = store.Load();
             AssertTrue(!migrated.SaveExr, "旧配置缺失时不应默认保存 EXR");
             AssertEqual(PreviewQuality.Low, migrated.PreviewQuality, "旧配置缺失时应使用低画质");
+            AssertEqual(AppSettings.CurrentVersion, migrated.Version, "旧配置应迁移到当前版本");
+            AssertTrue(migrated.Denoise is not null, "旧配置应补齐降噪默认值");
+            AssertTrue(migrated.Portrait is not null, "旧配置应补齐人像默认值");
+            AssertTrue(migrated.ComfyUi is not null, "旧配置应补齐 ComfyUI 默认值");
 
             defaults.ExposureEv = 9;
             defaults.SaveDirectory = "%TEMP%";
@@ -354,6 +368,16 @@ internal static class SelfTestRunner
             AssertClose(defaults.ExposureEv, reloaded.ExposureEv, 1e-6, "配置应能保存并重新读取");
             AssertTrue(reloaded.SaveExr, "保存 EXR 选项应能持久化");
             AssertEqual(PreviewQuality.Low, reloaded.PreviewQuality, "预览画质应能持久化");
+
+            defaults.ComfyUi.BaseUrl = "http://192.168.1.2:8188";
+            defaults.ComfyUi.Port = 80;
+            defaults.Denoise.Strength = 9;
+            defaults.Portrait.SmoothSkin = -1;
+            defaults.Normalize();
+            AssertEqual("http://127.0.0.1:8188", defaults.ComfyUi.BaseUrl, "非回环地址应被拒绝");
+            AssertEqual(8188, defaults.ComfyUi.Port, "非法端口应恢复默认");
+            AssertClose(1.0, defaults.Denoise.Strength, 1e-6, "降噪强度应限制在 0..1");
+            AssertClose(0.0, defaults.Portrait.SmoothSkin, 1e-6, "磨皮强度应限制在 0..1");
 
             File.WriteAllText(store.FilePath, "{ this is not json");
             var recovered = store.Load();
@@ -442,6 +466,210 @@ internal static class SelfTestRunner
         {
             TryDeleteDirectory(directory);
         }
+    }
+
+    private static void TestLastCaptureStore()
+    {
+        var firstImage = new LinearImage(2, 1);
+        SetPixel(firstImage, 0, 1, 1, 1);
+        SetPixel(firstImage, 1, 1, 1, 1);
+        var first = new CapturedImageSnapshot(
+            firstImage,
+            new PixelRect(0, 0, 2, 1),
+            DateTimeOffset.Now,
+            "test",
+            240);
+        var secondImage = new LinearImage(1, 1);
+        SetPixel(secondImage, 0, 2, 2, 2);
+        var second = new CapturedImageSnapshot(
+            secondImage,
+            new PixelRect(10, 10, 1, 1),
+            DateTimeOffset.Now,
+            "test",
+            308);
+
+        using var store = new LastCaptureStore();
+        store.Store(first);
+        store.Store(second);
+        AssertTrue(ReferenceEquals(second, store.Current), "应只保留最新截图");
+        var disposed = false;
+        try
+        {
+            _ = first.Image;
+        }
+        catch (ObjectDisposedException)
+        {
+            disposed = true;
+        }
+
+        AssertTrue(disposed, "被替换的 HDR 图像应被释放");
+    }
+
+    private static void TestFastHdrDenoise()
+    {
+        var image = new LinearImage(8, 4);
+        for (var index = 0; index < image.Red.Length; index++)
+        {
+            var value = (index & 1) == 0 ? 0.25f : 0.75f;
+            SetPixel(image, index, value, value * 0.8f, value * 0.6f);
+        }
+
+        image.Regions.Add(new WhitePointRegion(0, 0, 8, 4, @"\\.\DISPLAYT", true, 240));
+        var result = HdrDenoiser.DenoiseFast(image, 0.8, 0.4);
+        AssertTrue(!ReferenceEquals(image, result.Image), "快速降噪应生成新图像");
+        foreach (var value in result.Image.Red)
+        {
+            AssertTrue(float.IsFinite(RegionComposer.FromHalfBits(value)), "快速降噪产生了非有限值");
+        }
+    }
+
+    private static void TestOidnHdrDenoise()
+    {
+        AssertTrue(OidnRuntime.IsAvailable, $"OIDN 不可用：{OidnRuntime.Error}");
+        var image = new LinearImage(32, 24);
+        for (var row = 0; row < image.Height; row++)
+        {
+            for (var column = 0; column < image.Width; column++)
+            {
+                var noise = (((row * 17) + (column * 13)) % 7) * 0.015f;
+                var value = 0.18f + (column / 64f) + noise;
+                SetPixel(image, (row * image.Width) + column, value, value * 0.9f, value * 0.8f);
+            }
+        }
+
+        image.Regions.Add(new WhitePointRegion(0, 0, image.Width, image.Height, @"\\.\DISPLAYT", true, 240));
+        var result = HdrDenoiser.DenoiseFinal(
+            image,
+            1.0,
+            0.0,
+            useOidn: true,
+            CancellationToken.None);
+        AssertTrue(result.UsedOidn, result.Warning ?? "没有使用 OIDN");
+        foreach (var value in result.Image.Red)
+        {
+            AssertTrue(float.IsFinite(RegionComposer.FromHalfBits(value)), "OIDN 返回了非有限值");
+        }
+    }
+
+    private static void TestComfyUiWorkflow()
+    {
+        var workflow = ComfyUiWorkflowBuilder.BuildPortraitWorkflow(
+            new PortraitWorkflowParameters(
+                "model.safetensors",
+                "HDRCapture_test.png",
+                123,
+                0.35,
+                10,
+                18,
+                0.6,
+                "HDRCapture_final_test",
+                "HDRCapture_mask_test"));
+        AssertEqual("CheckpointLoaderSimple", workflow["1"]?["class_type"]?.GetValue<string>(), "检查点节点");
+        AssertEqual("FaceDetailer", workflow["20"]?["class_type"]?.GetValue<string>(), "FaceDetailer 节点");
+        AssertEqual("ImageBlend", workflow["30"]?["class_type"]?.GetValue<string>(), "融合节点");
+        AssertEqual("SaveImage", workflow["31"]?["class_type"]?.GetValue<string>(), "输出节点");
+        AssertEqual(
+            "model.safetensors",
+            workflow["1"]?["inputs"]?["ckpt_name"]?.GetValue<string>(),
+            "检查点占位符");
+        AssertEqual(
+            123L,
+            workflow["20"]?["inputs"]?["seed"]?.GetValue<long>(),
+            "随机种子占位符");
+        AssertEqual(
+            "HDRCapture_test.png",
+            workflow["2"]?["inputs"]?["image"]?.GetValue<string>(),
+            "输入图片占位符");
+
+        var withIpAdapter = ComfyUiWorkflowBuilder.BuildPortraitWorkflow(
+            new PortraitWorkflowParameters(
+                "model.safetensors",
+                "HDRCapture_test.png",
+                456,
+                0.35,
+                10,
+                18,
+                0.6,
+                "HDRCapture_final_test",
+                "HDRCapture_mask_test",
+                UseIpAdapter: true,
+                IpAdapterFile: "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+                ClipVisionFile: "clip_vision_h.safetensors"));
+        AssertEqual(
+            "IPAdapterModelLoader",
+            withIpAdapter["40"]?["class_type"]?.GetValue<string>(),
+            "IP-Adapter 加载节点");
+        AssertEqual(
+            "42",
+            withIpAdapter["20"]?["inputs"]?["model"]?[0]?.GetValue<string>(),
+            "FaceDetailer 应使用 IP-Adapter 模型");
+    }
+
+    private static void TestComfyUiWorkflowTemplate()
+    {
+        var path = WorkflowTemplateStore.EnsurePortraitTemplate();
+        AssertTrue(File.Exists(path), "本地工作流模板未生成");
+        var template = WorkflowTemplateStore.LoadPortraitTemplate();
+        AssertEqual(
+            "FaceDetailer",
+            template["20"]?["class_type"]?.GetValue<string>(),
+            "模板中的 FaceDetailer 节点");
+    }
+
+    private static void TestComfyUiErrorText()
+    {
+        var translated = ComfyUiErrorText.Translate("clip input is invalid");
+        AssertTrue(
+            translated.Contains("SD 或 SDXL", StringComparison.Ordinal),
+            "CLIP 错误应给出检查点类型提示");
+        AssertEqual(
+            "out of memory",
+            ComfyUiErrorText.Translate("out of memory"),
+            "未知错误应原样保留");
+    }
+
+    private static void TestComfyUiPathValidation()
+    {
+        var invalid = ComfyUiPathValidator.Validate(Path.Combine(
+            Path.GetTempPath(),
+            $"hdrcapture-no-comfy-{Guid.NewGuid():N}"));
+        AssertTrue(!invalid.IsValid, "不存在的 ComfyUI 路径不应通过检测");
+        AssertTrue(invalid.Missing.Count > 0, "无效 ComfyUI 路径应说明缺失项");
+
+        const string expectedRoot = @"D:\AI\ComfyUI";
+        if (Directory.Exists(expectedRoot))
+        {
+            var valid = ComfyUiPathValidator.Validate(expectedRoot);
+            AssertTrue(
+                valid.IsValid,
+                "本机 ComfyUI 检测失败：" + string.Join("；", valid.Missing));
+            AssertTrue(
+                File.Exists(Path.Combine(
+                    valid.Installation!.ComfyUiDirectory,
+                    "custom_nodes",
+                    "ComfyUI-Impact-Pack",
+                    "modules",
+                    "impact",
+                    "impact_pack.py")),
+                "Impact Pack 主模块缺失");
+        }
+    }
+
+    private static void TestComfyUiOptionalComponents()
+    {
+        const string expectedRoot = @"D:\AI\ComfyUI";
+        if (!Directory.Exists(expectedRoot))
+        {
+            return;
+        }
+
+        var validation = ComfyUiPathValidator.Validate(expectedRoot);
+        AssertTrue(validation.IsValid, "本机 ComfyUI 路径应有效");
+        var status = ComfyUiOptionalComponents.Inspect(validation.Installation!);
+        AssertTrue(status.NodeAvailable, "IP-Adapter Plus 节点未安装");
+        AssertTrue(
+            !string.IsNullOrWhiteSpace(status.ClipVisionPath),
+            "CLIP-Vision 模型未安装");
     }
 
     private static CapturedMonitor CreateHdrMonitor(

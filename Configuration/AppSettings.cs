@@ -6,7 +6,7 @@ namespace HdrCapture.Configuration;
 
 internal sealed class AppSettings
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -23,6 +23,12 @@ internal sealed class AppSettings
     public bool SaveExr { get; set; }
 
     public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Low;
+
+    public DenoiseSettings Denoise { get; set; } = new();
+
+    public PortraitSettings Portrait { get; set; } = new();
+
+    public ComfyUiSettings ComfyUi { get; set; } = new();
 
     [JsonIgnore]
     public string EffectiveSaveDirectory => ResolveSaveDirectory(SaveDirectory);
@@ -42,7 +48,10 @@ internal sealed class AppSettings
             StartWithWindows = StartWithWindows,
             IncludeCursor = IncludeCursor,
             SaveExr = SaveExr,
-            PreviewQuality = PreviewQuality
+            PreviewQuality = PreviewQuality,
+            Denoise = Denoise.Clone(),
+            Portrait = Portrait.Clone(),
+            ComfyUi = ComfyUi.Clone()
         };
     }
 
@@ -61,6 +70,13 @@ internal sealed class AppSettings
         {
             PreviewQuality = PreviewQuality.Low;
         }
+
+        Denoise ??= new DenoiseSettings();
+        Portrait ??= new PortraitSettings();
+        ComfyUi ??= new ComfyUiSettings();
+        Denoise.Normalize();
+        Portrait.Normalize();
+        ComfyUi.Normalize();
     }
 
     public static string DefaultSaveDirectory =>
@@ -89,6 +105,140 @@ internal sealed class AppSettings
 
         return ResolveSaveDirectory(configuredDirectory);
     }
+}
+
+internal sealed class DenoiseSettings
+{
+    public double Strength { get; set; } = 0.35;
+
+    public double DetailPreservation { get; set; } = 0.60;
+
+    public bool UseOidnForFinal { get; set; } = true;
+
+    public bool SaveDenoisedExr { get; set; }
+
+    public DenoiseSettings Clone()
+    {
+        return new DenoiseSettings
+        {
+            Strength = Strength,
+            DetailPreservation = DetailPreservation,
+            UseOidnForFinal = UseOidnForFinal,
+            SaveDenoisedExr = SaveDenoisedExr
+        };
+    }
+
+    public void Normalize()
+    {
+        Strength = Math.Clamp(Strength, 0.0, 1.0);
+        DetailPreservation = Math.Clamp(DetailPreservation, 0.0, 1.0);
+    }
+}
+
+internal sealed class PortraitSettings
+{
+    public string Checkpoint { get; set; } = string.Empty;
+
+    public double SmoothSkin { get; set; } = 0.35;
+
+    public double Denoise { get; set; } = 0.35;
+
+    public double BrightnessEv { get; set; }
+
+    public double DetailPreservation { get; set; } = 0.60;
+
+    public bool UseIpAdapter { get; set; } = true;
+
+    public PortraitSettings Clone()
+    {
+        return new PortraitSettings
+        {
+            Checkpoint = Checkpoint,
+            SmoothSkin = SmoothSkin,
+            Denoise = Denoise,
+            BrightnessEv = BrightnessEv,
+            DetailPreservation = DetailPreservation,
+            UseIpAdapter = UseIpAdapter
+        };
+    }
+
+    public void Normalize()
+    {
+        Checkpoint = NormalizeModelName(Checkpoint);
+        SmoothSkin = Math.Clamp(SmoothSkin, 0.0, 1.0);
+        Denoise = Math.Clamp(Denoise, 0.0, 1.0);
+        BrightnessEv = Math.Clamp(BrightnessEv, -2.0, 2.0);
+        DetailPreservation = Math.Clamp(DetailPreservation, 0.0, 1.0);
+    }
+
+    private static string NormalizeModelName(string? value)
+    {
+        var name = Path.GetFileName((value ?? string.Empty).Trim());
+        return string.IsNullOrWhiteSpace(name) ? string.Empty : name;
+    }
+}
+
+internal sealed class ComfyUiSettings
+{
+    public string RootPath { get; set; } = string.Empty;
+
+    public string BaseUrl { get; set; } = "http://127.0.0.1:8188";
+
+    public int Port { get; set; } = 8188;
+
+    public int IdleMinutes { get; set; } = 10;
+
+    public bool AutoStart { get; set; } = true;
+
+    public ComfyUiSettings Clone()
+    {
+        return new ComfyUiSettings
+        {
+            RootPath = RootPath,
+            BaseUrl = BaseUrl,
+            Port = Port,
+            IdleMinutes = IdleMinutes,
+            AutoStart = AutoStart
+        };
+    }
+
+    public void Normalize()
+    {
+        RootPath = NormalizeRootPath(RootPath);
+        Port = Port is >= 1024 and <= 65535 ? Port : 8188;
+        IdleMinutes = Math.Clamp(IdleMinutes, 1, 240);
+
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+            !IsLoopback(uri.Host))
+        {
+            BaseUrl = "http://127.0.0.1:8188";
+        }
+
+        BaseUrl = BaseUrl.TrimEnd('/');
+    }
+
+    private static string NormalizeRootPath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(value.Trim());
+            return Path.GetFullPath(expanded).TrimEnd(Path.DirectorySeparatorChar);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool IsLoopback(string host) =>
+        string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+        System.Net.IPAddress.TryParse(host, out var address) && System.Net.IPAddress.IsLoopback(address);
 }
 
 internal enum PreviewQuality

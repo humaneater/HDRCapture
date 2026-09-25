@@ -13,9 +13,9 @@
     <RootNamespace>HdrCapture</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\HDRCapture.ico</ApplicationIcon>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Authors>HDRCapture</Authors>
-    <Description>Windows HDR region capture to clipboard PNG, with optional EXR saving.</Description>
+    <Description>Windows HDR region capture with EXR saving, HDR denoise and local portrait enhancement.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -32,5 +32,10 @@
     <Using Remove="System.Drawing" />
     <Using Remove="System.Windows.Forms" />
     <Resource Include="Assets\HDRCapture.ico" />
+    <EmbeddedResource Include="Native\OpenImageDenoise\*.dll" />
+    <EmbeddedResource Include="Assets\ComfyWorkflows\*.json" />
+    <None Include="THIRD-PARTY-NOTICES.md"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

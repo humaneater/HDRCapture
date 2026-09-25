@@ -21,6 +21,13 @@ internal static class ClipboardWriter
 
     public static unsafe void SetImage(LinearImage image, double exposureEv)
     {
+        var bgra = LdrConverter.ToBgra(image, exposureEv);
+        SetImage(new BgraImage(image.Width, image.Height, bgra));
+    }
+
+    public static unsafe void SetImage(BgraImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
         var width = image.Width;
         var height = image.Height;
         var imageBytes = checked(width * height * 4);
@@ -39,28 +46,16 @@ internal static class ClipboardWriter
             throw new OutOfMemoryException("无法锁定剪贴板图像内存。");
         }
 
-        var pngPath = Path.Combine(
-            Path.GetTempPath(),
-            $"HDRCapture-{Guid.NewGuid():N}.png");
         try
         {
             WriteDibV5Header(pointer, width, height, imageBytes);
             var pixels = pointer + DibV5HeaderSize;
-            LdrConverter.ToBgra(image, exposureEv, pixels, bottomUp: true);
+            CopyBottomUp(image.Pixels, pixels, width * 4, height);
 
-            using var pngFile = new FileStream(
-                pngPath,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.Read,
-                1 << 20,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-            PngEncoder.Encode(pngFile, pixels, width, height, bottomUpSource: true);
-            pngFile.Flush(flushToDisk: false);
-            pngFile.Position = 0;
+            using var png = new MemoryStream(image.EncodePng(), writable: false);
 
             GlobalUnlock(dibHandle);
-            Publish(pngFile, dibHandle);
+            Publish(png, dibHandle);
             return;
         }
         catch
@@ -68,6 +63,22 @@ internal static class ClipboardWriter
             GlobalUnlock(dibHandle);
             GlobalFree(dibHandle);
             throw;
+        }
+    }
+
+    private static unsafe void CopyBottomUp(
+        ReadOnlySpan<byte> source,
+        nint destination,
+        int stride,
+        int height)
+    {
+        for (var row = 0; row < height; row++)
+        {
+            var sourceRow = source.Slice(row * stride, stride);
+            var destinationRow = new Span<byte>(
+                (void*)(destination + ((height - 1 - row) * stride)),
+                stride);
+            sourceRow.CopyTo(destinationRow);
         }
     }
 
@@ -106,7 +117,6 @@ internal static class ClipboardWriter
 
             if (attempt >= MaxAttempts)
             {
-                GlobalFree(dibHandle);
                 throw new InvalidOperationException("剪贴板正被其他程序占用，无法写入。");
             }
 

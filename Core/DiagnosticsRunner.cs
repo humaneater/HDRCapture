@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Text;
 using HdrCapture.Capture;
+using HdrCapture.ComfyUi;
+using HdrCapture.Configuration;
 using HdrCapture.Infrastructure;
+using HdrCapture.Imaging;
 using HdrCapture.Native;
 
 namespace HdrCapture.Core;
@@ -26,6 +29,81 @@ internal static class DiagnosticsRunner
             }
 
             output.AppendLine($"D3D11 staging-map probe: 0x{WinRtCaptureNative.ProbeMapRead():X8}");
+            output.AppendLine($"OIDN: {(OidnRuntime.IsAvailable ? "available" : "unavailable")}");
+            if (!OidnRuntime.IsAvailable)
+            {
+                output.AppendLine($"OIDN error: {OidnRuntime.Error}");
+            }
+
+            var settings = new SettingsStore().Load();
+            var comfyValidation = ComfyUiService.Validate(settings.ComfyUi);
+            output.AppendLine(
+                $"ComfyUI configured root: " +
+                $"{(string.IsNullOrWhiteSpace(settings.ComfyUi.RootPath) ? "(empty)" : settings.ComfyUi.RootPath)}");
+            output.AppendLine($"ComfyUI path valid: {(comfyValidation.IsValid ? "yes" : "no")}");
+            if (!comfyValidation.IsValid)
+            {
+                foreach (var missing in comfyValidation.Missing)
+                {
+                    output.AppendLine($"ComfyUI missing: {missing}");
+                }
+            }
+
+            var comfyService = new ComfyUiService();
+            try
+            {
+                var ready = await comfyService
+                    .ProbeAsync(settings.ComfyUi)
+                    .ConfigureAwait(false);
+                var processSource = ready.IsReady
+                    ? comfyService.TryGetOwnedProcess(out var ownedProcessId)
+                        ? $"HDRCapture (PID {ownedProcessId})"
+                        : "external"
+                    : "not running";
+                output.AppendLine(
+                    $"ComfyUI API {settings.ComfyUi.BaseUrl}: " +
+                    $"{(ready.IsReady ? "ready" : "not running")}, process source {processSource}");
+                if (ready.IsReady)
+                {
+                    output.AppendLine(
+                        $"ComfyUI nodes: FaceDetailer " +
+                        $"{(ready.FaceDetailerAvailable ? "available" : "missing")}, " +
+                        $"IPAdapterAdvanced " +
+                        $"{(ready.IpAdapterAdvancedAvailable ? "available" : "missing")}");
+                    output.AppendLine(
+                        $"ComfyUI checkpoints: " +
+                        $"{(ready.Checkpoints.Count == 0 ? "(none)" : string.Join(", ", ready.Checkpoints))}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(ready.Error))
+                {
+                    output.AppendLine($"ComfyUI API error: {ready.Error}");
+                }
+
+                if (comfyValidation.Installation is not null)
+                {
+                    var faceModel = Path.Combine(
+                        comfyValidation.Installation.UltralyticsDirectory,
+                        "face_yolov8m.pt");
+                    var samModel = Path.Combine(
+                        comfyValidation.Installation.SamDirectory,
+                        "sam_vit_b_01ec64.pth");
+                    output.AppendLine($"Face detector: {(File.Exists(faceModel) ? faceModel : "missing")}");
+                    output.AppendLine($"SAM model: {(File.Exists(samModel) ? samModel : "missing")}");
+                    var optional = ComfyUiOptionalComponents.Inspect(
+                        comfyValidation.Installation);
+                    output.AppendLine(
+                        $"Optional IP-Adapter Face: " +
+                        $"{(optional.IsInstalled ? "available" : "not installed")}");
+                    output.AppendLine(
+                        $"Optional CLIP-Vision: " +
+                        $"{(optional.ClipVisionPath ?? "missing")}");
+                }
+            }
+            finally
+            {
+                comfyService.Dispose();
+            }
 
             var capture = new ScreenCaptureService();
             var captures = await capture
