@@ -7,20 +7,14 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _captureItem;
-    private readonly ToolStripMenuItem _editLastItem;
     private Icon? _icon;
     private bool _disposed;
 
     public TrayIcon(string hotkeyText)
     {
         _captureItem = new ToolStripMenuItem();
-        _editLastItem = new ToolStripMenuItem("编辑上次截图", null, (_, _) => EditLastRequested?.Invoke(this, EventArgs.Empty))
-        {
-            Enabled = false
-        };
         var menu = new ContextMenuStrip();
         menu.Items.Add(_captureItem);
-        menu.Items.Add(_editLastItem);
         menu.Items.Add(new ToolStripMenuItem("打开保存目录", null, (_, _) => OpenFolderRequested?.Invoke(this, EventArgs.Empty)));
         menu.Items.Add(new ToolStripMenuItem("设置...", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty)));
         menu.Items.Add(new ToolStripSeparator());
@@ -51,8 +45,6 @@ internal sealed class TrayIcon : IDisposable
 
     public event EventHandler? CaptureRequested;
 
-    public event EventHandler? EditLastRequested;
-
     public event EventHandler? SettingsRequested;
 
     public event EventHandler? OpenFolderRequested;
@@ -60,8 +52,6 @@ internal sealed class TrayIcon : IDisposable
     public event EventHandler? ExitRequested;
 
     public void UpdateHotkey(string hotkeyText) => _hotkeyText = hotkeyText;
-
-    public void SetHasCapture(bool hasCapture) => _editLastItem.Enabled = hasCapture;
 
     public void ShowError(string message) =>
         Show("HDRCapture 出错", message, ToolTipIcon.Error);

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using HdrCapture.ComfyUi;
 using HdrCapture.Configuration;
 using HdrCapture.Infrastructure;
 using HdrCapture.Ui;
@@ -13,11 +12,8 @@ internal sealed class AppController : IDisposable
     private readonly SettingsStore _settingsStore = new();
     private readonly HotkeyManager _hotkeyManager = new();
     private readonly CaptureWorkflow _workflow = new();
-    private readonly LastCaptureStore _lastCaptures = new();
-    private readonly ComfyUiService _comfyUiService = new();
     private AppSettings _settings = new();
     private TrayIcon? _tray;
-    private PostProcessWindow? _postProcessWindow;
     private bool _disposed;
 
     public void Start()
@@ -31,7 +27,6 @@ internal sealed class AppController : IDisposable
         var registered = TryRegisterHotkey(_settings.Hotkey.Modifiers, _settings.Hotkey.VirtualKey);
         _tray = new TrayIcon(HotkeyFormatter.Format(_settings.Hotkey.Modifiers, _settings.Hotkey.VirtualKey));
         _tray.CaptureRequested += OnCaptureRequested;
-        _tray.EditLastRequested += (_, _) => ShowPostProcess();
         _tray.SettingsRequested += (_, _) => ShowSettings();
         _tray.OpenFolderRequested += (_, _) => OpenSaveFolder();
         _tray.ExitRequested += (_, _) => System.Windows.Application.Current?.Shutdown(0);
@@ -58,10 +53,6 @@ internal sealed class AppController : IDisposable
         _disposed = true;
         _hotkeyManager.Pressed -= OnCaptureRequested;
         _hotkeyManager.Dispose();
-        _postProcessWindow?.Close();
-        _postProcessWindow = null;
-        _comfyUiService.Dispose();
-        _lastCaptures.Dispose();
         _tray?.Dispose();
         _tray = null;
     }
@@ -84,22 +75,9 @@ internal sealed class AppController : IDisposable
             return;
         }
 
-        if (_postProcessWindow is not null)
-        {
-            _tray?.ShowInfo("请先关闭后期处理窗口，再开始新的截图。");
-            return;
-        }
-
         try
         {
             var outcome = await _workflow.RunInteractiveAsync(_settings).ConfigureAwait(true);
-            if (!outcome.Cancelled && outcome.Snapshot is not null)
-            {
-                _lastCaptures.Store(outcome.Snapshot);
-                _tray?.SetHasCapture(true);
-                MemoryTrimmer.CollectAndTrim("after replacing last capture");
-            }
-
             Report(outcome);
         }
         catch (Exception ex)
@@ -162,14 +140,14 @@ internal sealed class AppController : IDisposable
         }
     }
 
-    internal void ShowSettings(SettingsTab initialTab = SettingsTab.General)
+    internal void ShowSettings()
     {
         if (_disposed)
         {
             return;
         }
 
-        var window = new SettingsWindow(_settings, TryRegisterHotkey, initialTab);
+        var window = new SettingsWindow(_settings, TryRegisterHotkey);
         var accepted = window.ShowDialog() == true && window.Result is not null;
         if (!accepted)
         {
@@ -177,55 +155,7 @@ internal sealed class AppController : IDisposable
             return;
         }
 
-        ApplySettings(window.Result!);
-    }
-
-    private void ShowPostProcess()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        if (_postProcessWindow is not null)
-        {
-            _postProcessWindow.Activate();
-            return;
-        }
-
-        var snapshot = _lastCaptures.Current;
-        if (snapshot is null)
-        {
-            _tray?.ShowInfo("还没有可编辑的截图。");
-            return;
-        }
-
-        var window = new PostProcessWindow(
-            snapshot,
-            _comfyUiService,
-            () => _settings,
-            settings => ApplySettings(settings, showNotification: false),
-            () =>
-            {
-                ShowSettings(SettingsTab.ComfyUi);
-                return ComfyUiService.Validate(_settings.ComfyUi).IsValid;
-            });
-        _postProcessWindow = window;
-        window.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_postProcessWindow, window))
-            {
-                _postProcessWindow = null;
-            }
-
-            MemoryTrimmer.CollectAndTrim("after closing post-processing");
-        };
-        window.Show();
-    }
-
-    private void ApplySettings(AppSettings settings, bool showNotification = true)
-    {
-        _settings = settings;
+        _settings = window.Result!;
         try
         {
             _settingsStore.Save(_settings);
@@ -237,15 +167,10 @@ internal sealed class AppController : IDisposable
 
         ApplyAutoStart(_settings.StartWithWindows);
         _tray?.UpdateHotkey(HotkeyFormatter.Format(_settings.Hotkey.Modifiers, _settings.Hotkey.VirtualKey));
-        if (showNotification)
-        {
-            _tray?.ShowInfo("设置已保存。");
-        }
+        _tray?.ShowInfo("设置已保存。");
         Log.Info(
             $"Settings updated. Save EXR: {_settings.SaveExr}; " +
             $"Preview: {_settings.PreviewQuality}; " +
-            $"Denoise: {_settings.Denoise.Strength:0.00}; " +
-            $"ComfyUI: {_settings.ComfyUi.RootPath}; " +
             $"Save directory: {_settings.EffectiveSaveDirectory}");
     }
 

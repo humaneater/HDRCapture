@@ -18,7 +18,5 @@ internal sealed class CaptureOutcome
 
     public string? ClipboardError { get; set; }
 
-    public CapturedImageSnapshot? Snapshot { get; set; }
-
     public bool ExrSaved => ExrPath is not null;
 }

@@ -4,339 +4,133 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="HDRCapture 设置"
         Icon="pack://application:,,,/Assets/HDRCapture.ico"
-        Width="1120"
-        Height="680"
-        MinWidth="900"
-        MinHeight="600"
+        Width="620"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBackgroundBrush}"
         FontFamily="Segoe UI"
         FontSize="13">
-    <Grid Margin="18">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="96" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabControl x:Name="SettingsTabs"
-                    Grid.Row="0"
-                    HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch">
-            <TabItem Header="常规"
-                     HorizontalContentAlignment="Stretch"
-                     VerticalContentAlignment="Stretch">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="18">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="112" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="快捷键" VerticalAlignment="Center" />
+        <TextBox x:Name="HotkeyBox"
+                 Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="False"
+                 Padding="8,4"
+                 PreviewKeyDown="OnHotkeyPreviewKeyDown"
+                 PreviewKeyUp="OnHotkeyPreviewKeyUp"
+                 ToolTip="点击后按下新的组合键" />
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="快捷键" VerticalAlignment="Center" />
-                    <TextBox x:Name="HotkeyBox"
-                             Grid.Row="0"
-                             Grid.Column="1"
-                             Grid.ColumnSpan="2"
-                             IsReadOnly="True"
-                             IsReadOnlyCaretVisible="False"
-                             Padding="8,4"
-                             PreviewKeyDown="OnHotkeyPreviewKeyDown"
-                             PreviewKeyUp="OnHotkeyPreviewKeyUp"
-                             ToolTip="点击后按下新的组合键" />
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,16"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="必须包含 Ctrl / Alt / Shift / Win，或单独使用 F1–F24、PrintScreen、Pause、ScrollLock。" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                   Margin="0,6,0,14"
+                   Foreground="#666666"
+                   TextWrapping="Wrap"
+                   Text="必须包含 Ctrl / Alt / Shift / Win，或单独使用 F1–F24、PrintScreen、Pause、ScrollLock。冲突的组合键无法保存。" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="自动保存 HDR" VerticalAlignment="Center" />
-                    <CheckBox x:Name="SaveExrBox"
-                              Grid.Row="2"
-                              Grid.Column="1"
-                              Grid.ColumnSpan="2"
-                              Content="截图确认后保存 EXR"
-                              VerticalAlignment="Center" />
-                    <TextBlock Grid.Row="3"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,16"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="关闭时只把 LDR 图片放入剪贴板，内存中仍保留最近一张 HDR 供后期处理；原始 HDR 不会被 AI 覆盖。" />
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="HDR 文件" VerticalAlignment="Center" />
+        <CheckBox x:Name="SaveExrBox"
+                  Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                  Content="保存 HDR EXR 到本地目录"
+                  VerticalAlignment="Center"
+                  Checked="OnSaveExrChanged"
+                  Unchecked="OnSaveExrChanged" />
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="文件目录" VerticalAlignment="Center" />
-                    <TextBox x:Name="DirectoryBox" Grid.Row="4" Grid.Column="1" Padding="8,4" />
-                    <Button x:Name="BrowseButton"
-                            Grid.Row="4"
-                            Grid.Column="2"
-                            Content="浏览..."
-                            Margin="8,0,0,0"
-                            Click="OnBrowseClick" />
-                    <TextBlock Grid.Row="5"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,16"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="自动保存 EXR 和后期窗口保存 PNG 时默认使用此目录，不存在时自动创建。" />
+        <TextBlock x:Name="SaveExrHelpText"
+                   Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                   Margin="0,6,0,14"
+                   Foreground="#666666"
+                   TextWrapping="Wrap"
+                   Text="默认只复制 LDR 图片到剪贴板，不写入 EXR 文件。" />
 
-                    <TextBlock Grid.Row="6" Grid.Column="0" Text="预览画质" VerticalAlignment="Center" />
-                    <ComboBox x:Name="PreviewQualityBox"
-                              Grid.Row="6"
-                              Grid.Column="1"
-                              Grid.ColumnSpan="2"
-                              MinHeight="30"
-                              VerticalContentAlignment="Center"
-                              ToolTip="选择冻结截图遮罩使用的预览分辨率。">
-                        <ComboBoxItem Content="高：全分辨率" />
-                        <ComboBoxItem Content="中：1/2 分辨率" />
-                        <ComboBoxItem Content="低：最长边 1920 像素" />
-                    </ComboBox>
-                    <TextBlock Grid.Row="7"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,16"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="该档位只影响截图选区的冻结预览，不影响最终 EXR 或剪贴板清晰度。" />
+        <TextBlock x:Name="DirectoryLabel"
+                   Grid.Row="4" Grid.Column="0"
+                   Text="保存目录"
+                   VerticalAlignment="Center" />
+        <TextBox x:Name="DirectoryBox" Grid.Row="4" Grid.Column="1" Padding="8,4" />
+        <Button x:Name="BrowseButton"
+                Grid.Row="4" Grid.Column="2"
+                Content="浏览..."
+                Margin="8,0,0,0"
+                Click="OnBrowseClick" />
 
-                    <TextBlock Grid.Row="8" Grid.Column="0" Text="曝光补偿" VerticalAlignment="Center" />
-                    <Grid Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="72" />
-                        </Grid.ColumnDefinitions>
-                        <Slider x:Name="ExposureSlider"
-                                Grid.Column="0"
-                                Minimum="-3"
-                                Maximum="3"
-                                TickFrequency="0.1"
-                                SmallChange="0.1"
-                                LargeChange="0.5"
-                                IsSnapToTickEnabled="True"
-                                VerticalAlignment="Center"
-                                ValueChanged="OnExposureChanged" />
-                        <TextBlock x:Name="ExposureText"
-                                   Grid.Column="1"
-                                   Margin="8,0,0,0"
-                                   TextAlignment="Right"
-                                   VerticalAlignment="Center" />
-                    </Grid>
+        <TextBlock x:Name="DirectoryHelpText"
+                   Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2"
+                   Margin="0,6,0,14"
+                   Foreground="#666666"
+                   TextWrapping="Wrap"
+                   Text="EXR 会保存在此目录，目录不存在时自动创建。" />
 
-                    <StackPanel Grid.Row="9"
-                                Grid.Column="1"
-                                Grid.ColumnSpan="2"
-                                Margin="0,18,0,0">
-                        <CheckBox x:Name="StartWithWindowsBox" Content="开机启动" />
-                        <CheckBox x:Name="IncludeCursorBox" Content="截图包含鼠标指针" Margin="0,10,0,0" />
-                    </StackPanel>
-                    </Grid>
-                </ScrollViewer>
-            </TabItem>
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="预览画质" VerticalAlignment="Center" />
+        <ComboBox x:Name="PreviewQualityBox"
+                  Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2"
+                  MinHeight="30"
+                  VerticalContentAlignment="Center"
+                  ToolTip="选择冻结截图遮罩使用的预览分辨率。">
+            <ComboBoxItem Content="高：全分辨率" />
+            <ComboBoxItem Content="中：1/2 分辨率" />
+            <ComboBoxItem Content="低：最长边 1920 像素" />
+        </ComboBox>
 
-            <TabItem Header="降噪"
-                     HorizontalContentAlignment="Stretch"
-                     VerticalContentAlignment="Stretch">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="18">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="112" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="72" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+        <TextBlock Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2"
+                   Margin="0,6,0,14"
+                   Foreground="#666666"
+                   TextWrapping="Wrap"
+                   Text="高画质使用显示器原生分辨率；中画质宽高各减半；低画质限制最长边为 1920 像素。" />
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="默认降噪" VerticalAlignment="Center" />
-                    <Slider x:Name="DenoiseStrengthSlider"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Minimum="0"
-                            Maximum="1"
-                            TickFrequency="0.05"
-                            SmallChange="0.05"
-                            ValueChanged="OnDenoiseSliderChanged" />
-                    <TextBlock x:Name="DenoiseStrengthText"
-                               Grid.Row="0"
-                               Grid.Column="2"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center" />
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="曝光补偿" VerticalAlignment="Center" />
+        <Grid Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="72" />
+            </Grid.ColumnDefinitions>
+            <Slider x:Name="ExposureSlider"
+                    Grid.Column="0"
+                    Minimum="-3"
+                    Maximum="3"
+                    TickFrequency="0.1"
+                    SmallChange="0.1"
+                    LargeChange="0.5"
+                    IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center"
+                    ValueChanged="OnExposureChanged" />
+            <TextBlock x:Name="ExposureText"
+                       Grid.Column="1"
+                       Margin="8,0,0,0"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center" />
+        </Grid>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="细节保留" VerticalAlignment="Center" />
-                    <Slider x:Name="DenoiseDetailSlider"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Minimum="0"
-                            Maximum="1"
-                            TickFrequency="0.05"
-                            SmallChange="0.05"
-                            ValueChanged="OnDenoiseSliderChanged" />
-                    <TextBlock x:Name="DenoiseDetailText"
-                               Grid.Row="1"
-                               Grid.Column="2"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center" />
+        <TextBlock Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2"
+                   Margin="0,6,0,14"
+                   Foreground="#666666"
+                   TextWrapping="Wrap"
+                   Text="只影响复制到剪贴板的 PNG，写入 EXR 的始终是原始线性 HDR 数据。" />
 
-                    <CheckBox x:Name="UseOidnBox"
-                              Grid.Row="2"
-                              Grid.Column="1"
-                              Grid.ColumnSpan="2"
-                              Margin="0,18,0,0"
-                              Content="最终复制、保存或 AI 前使用分块 OIDN" />
-                    <TextBlock Grid.Row="3"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,16"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="后期窗口中的快速预览使用轻量边缘保护算法，最终输出才执行 CPU OIDN。关闭该选项可换取更快的处理速度。" />
-
-                    <CheckBox x:Name="SaveDenoisedExrBox"
-                              Grid.Row="4"
-                              Grid.Column="1"
-                              Grid.ColumnSpan="2"
-                              Content="后期窗口允许另存降噪 EXR" />
-                    <TextBlock Grid.Row="5"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,0"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="这里设置的是后期窗口的默认滑杆值。窗口关闭时会把最后使用的值同步回设置。" />
-                    </Grid>
-                </ScrollViewer>
-            </TabItem>
-
-            <TabItem Header="ComfyUI"
-                     HorizontalContentAlignment="Stretch"
-                     VerticalContentAlignment="Stretch">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="18">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="112" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="根目录" VerticalAlignment="Center" />
-                    <TextBox x:Name="ComfyRootBox"
-                             Grid.Row="0"
-                             Grid.Column="1"
-                             Padding="8,4"
-                             ToolTip="包含 ComfyUI 与 python_embeded 两个子目录的根目录" />
-                    <Button Grid.Row="0"
-                            Grid.Column="2"
-                            Content="浏览..."
-                            Margin="8,0,0,0"
-                            Click="OnBrowseComfyClick" />
-
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,8"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="示例：D:\AI\ComfyUI。HDRCapture 只读取该目录的模型与节点信息，不修改现有工作流和设置。" />
-
-                    <Button Grid.Row="2"
-                            Grid.Column="1"
-                            Content="检测路径与依赖"
-                            Width="150"
-                            HorizontalAlignment="Left"
-                            Click="OnDetectComfyClick" />
-                    <TextBlock x:Name="ComfyStatusText"
-                               Grid.Row="3"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,8,0,18"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="尚未检测。" />
-
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="服务地址" VerticalAlignment="Center" />
-                    <TextBox x:Name="ComfyBaseUrlBox"
-                             Grid.Row="4"
-                             Grid.Column="1"
-                             Grid.ColumnSpan="2"
-                             Padding="8,4"
-                             ToolTip="仅允许 http://127.0.0.1 或 localhost 地址" />
-
-                    <TextBlock Grid.Row="5" Grid.Column="0" Text="端口 / 空闲" VerticalAlignment="Center" />
-                    <StackPanel Grid.Row="5"
-                                Grid.Column="1"
-                                Grid.ColumnSpan="2"
-                                Margin="0,8,0,0"
-                                Orientation="Horizontal">
-                        <TextBox x:Name="ComfyPortBox" Width="90" Padding="8,4" />
-                        <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Text="空闲关闭（分钟）" />
-                        <TextBox x:Name="ComfyIdleBox" Width="70" Margin="10,0,0,0" Padding="8,4" />
-                    </StackPanel>
-
-                    <CheckBox x:Name="ComfyAutoStartBox"
-                              Grid.Row="6"
-                              Grid.Column="1"
-                              Grid.ColumnSpan="2"
-                              Margin="0,14,0,0"
-                              Content="需要时用隐藏窗口启动本机 ComfyUI" />
-                    <TextBlock Grid.Row="7"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,6,0,0"
-                               Foreground="#666666"
-                               TextWrapping="Wrap"
-                               Text="已有 ComfyUI 服务会被直接复用，程序不会关闭用户自己启动的进程。只有 HDRCapture 启动的服务会在空闲后关闭。" />
-                    </Grid>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
-
-        <StackPanel Grid.Row="1"
-                    Margin="0,16,0,0"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right">
-            <Button Content="保存"
-                    Width="88"
-                    IsDefault="True"
-                    Click="OnSaveClick" />
-            <Button Content="取消"
-                    Width="88"
-                    Margin="8,0,0,0"
-                    IsCancel="True"
-                    Click="OnCancelClick" />
+        <StackPanel Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal">
+            <CheckBox x:Name="StartWithWindowsBox" Content="开机启动" VerticalAlignment="Center" />
+            <CheckBox x:Name="IncludeCursorBox" Content="截图包含鼠标指针" Margin="24,0,0,0" VerticalAlignment="Center" />
+            <Button Content="保存" Width="88" Margin="28,0,0,0" IsDefault="True" Click="OnSaveClick" />
+            <Button Content="取消" Width="88" Margin="8,0,0,0" IsCancel="True" Click="OnCancelClick" />
         </StackPanel>
     </Grid>
 </Window>

@@ -164,13 +164,6 @@ internal sealed class CaptureWorkflow
     {
         var outcome = new CaptureOutcome { Region = region };
         var image = RegionComposer.Compose(captures, region);
-        var monitorSummary = DescribeMonitors(captures);
-        outcome.Snapshot = new CapturedImageSnapshot(
-            image,
-            region,
-            capturedAt,
-            monitorSummary,
-            GetPrimaryWhiteNits(image));
         MemoryTrimmer.CollectAndTrim("after compose");
 
         if (saveExr)
@@ -183,8 +176,8 @@ internal sealed class CaptureWorkflow
             var metadata = new ExrMetadata(
                 capturedAt,
                 region,
-                monitorSummary,
-                outcome.Snapshot.PrimarySdrWhiteNits,
+                DescribeMonitors(captures),
+                GetPrimaryWhiteNits(image),
                 settings.ExposureEv,
                 "Windows.Graphics.Capture (DXGI, FP16 scRGB)");
 
